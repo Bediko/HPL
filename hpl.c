@@ -4,7 +4,7 @@
 #include <mpi.h>
 #include <math.h>
 
-int matrix_size = 8;
+int matrix_size = 4;
 int testing = 1;
 void print_matrix(double **matrix)
 {
@@ -12,58 +12,73 @@ void print_matrix(double **matrix)
     {
         for (int j = 0; j < matrix_size; j++)
         {
-            printf("%3.f ", matrix[i][j]);
+            printf("%3.3lf ", matrix[i][j]);
         }
         printf("\n");
     }
     printf("\n");
 }
 
-
-void columnpivot(double **matrix, int k)
+void print_vec(double vec[matrix_size])
 {
-    int s;
+    for (int i = 0; i < matrix_size; i++)
+        printf("%3.3lf \n", vec[i]);
+    printf("\n");
+}
+
+
+void columnpivot(double **matrix, int k, double vec[matrix_size])
+{
+    int s, p;
     double pivot;
-    double *tmp;
+    double *tmp, tmp2;
     //first element of column=pivot
     pivot = fabs(matrix[k][k]);
     //for all rows > k
     s = k;
+    p = k;
     for (; s < matrix_size; s++)
     {
         //if |element| of row > pivot
         if (fabs(matrix[s][k]) > pivot)
         {
-            //set new pivot and swap rows
             pivot = fabs(matrix[s][k]);
-            tmp = matrix[k];
-            matrix[k] = matrix[s];
-            matrix[s] = tmp;
+            p = s;
         }
     }
-};
+    if (p != k)
+    {
+        //swap matrix rows
+        tmp = matrix[k];
+        matrix[k] = matrix[p];
+        matrix[p] = tmp;
+        //swap vector elemnts
+        tmp2 = vec[k];
+        vec[k] = vec[p];
+        vec[p] = tmp2;
+    }
+}
 
-void test()
+void single()
 {
     double **A;
-    double **L;
-    double **U;
+    double vec[matrix_size];
+
+
 
     //allocate matrix A, L, U
     A = (double **)malloc(matrix_size * sizeof(double *));
-    L = (double **)malloc(matrix_size * sizeof(double *));
-    U = (double **)malloc(matrix_size * sizeof(double *));
-    if (A == NULL || U == NULL || L == NULL)
+
+
+    if (A == NULL)
     {
         printf("Out of Memory\n");
         exit(0);
     }
     for (int i = 0; i < matrix_size; i++)
     {
-        A[i] = (double *)malloc(matrix_size * sizeof(double));
-        L[i] = (double *)malloc(matrix_size * sizeof(double));
-        U[i] = (double *)malloc(matrix_size * sizeof(double));
-        if (A[i] == NULL || L[i] == NULL || U[i] == NULL)
+        A[i] = (double *)malloc((matrix_size + 1) * sizeof(double));
+        if (A[i] == NULL)
         {
             printf("Out of Memory\n");
             exit(0);
@@ -71,10 +86,106 @@ void test()
     }
 
 
+
+    //first process fills Matrix A
+
+    // for (int i = 0; i < matrix_size; i++)
+    // {
+    //     A[0][i] = 12;
+    // }
+    // for (int i = 1; i < matrix_size; i++)
+    // {
+    //     for (int j = 0; j < matrix_size; j++)
+    //     {
+    //         if (i == j)
+    //             A[i][j] = 3;
+    //         else
+    //             A[i][j] = 12;
+    //     }
+
+    // }
+
+    //Testcase: step by step solution http://www.das-gelbe-rechenbuch.de/download/Lu.pdf page 8 ff
+    A[0][0] = 6.0;
+    A[0][1] = 5.0;
+    A[0][2] = 3.0;
+    A[0][3] = -10.0;
+    A[1][0] = 3.0;
+    A[1][1] = 7.0;
+    A[1][2] = -3.0;
+    A[1][3] = 5.0;
+    A[2][0] = 12.0;
+    A[2][1] = 4.0;
+    A[2][2] = 4.0;
+    A[2][3] = 4.0;
+    A[3][0] = 0.0;
+    A[3][1] = 12.0;
+    A[3][2] = 0.0;
+    A[3][3] = -8.0;
+    vec[0] = -10;
+    vec[1] = 14;
+    vec[2] = 8;
+    vec[3] = -8;
+
+    printf("Input\n");
+    print_vec(vec);
+    print_matrix(A);
+    
+
+    //LU_decomposition in Matrix A
+    for (int i = 0; i < matrix_size - 1; i++)
+    {
+        //pivotsearch
+        columnpivot(A, i, vec);
+        for (int k = i + 1; k < matrix_size; k++)
+        {   //L
+            A[k][i] = A[k][i] / A[i][i];
+
+            for (int j = i + 1; j < matrix_size; j++)
+            {
+                //U
+                A[k][j] = A[k][j] - (A[k][i] * A[i][j]);
+            }
+        }
+    printf("Step %i\n",i);
+    print_vec(vec);
+    print_matrix(A);
+
+    }
+    
+    //Ly=z
+    for (int i = 0; i < matrix_size; i++)
+    {
+        double sum = 0;
+        for (int j = 0; j < i; j++)
+        {
+            
+                sum += A[i][j] * vec[j];
+        }
+        vec[i] = vec[i]-sum;
+        
+    }
+    printf("Z\n");
+    print_vec(vec);
+
+    //Ux=y
+    for (int i = matrix_size-1; i >=0; i--)
+    {
+        double sum = 0;
+        for (int j = matrix_size-1; j > i; j--)
+        {
+            
+                sum += A[i][j] * vec[j];
+        }
+        vec[i] = (vec[i]-sum)/A[i][i];
+        
+    }
+    printf("Y\n");
+    print_vec(vec);
+}
+void test()
+{
     int numprocs, myrank, i;
-
-
-    // query the number of procs
     int err = MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
     if (err != MPI_SUCCESS)
         printf("error: comm_size (%d)\n", err);
@@ -84,53 +195,13 @@ void test()
     err = MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     if (err != MPI_SUCCESS)
         printf("error: comm_rank (%d)\n", err);
-
-    //first process fills Matrix A
-
     if (myrank == 0)
     {
-        for (int i = 0; i < matrix_size; i++)
-        {
-            A[0][i] = 12;
-        }
-        for (int i = 1; i < matrix_size; i++)
-        {
-            for (int j = 0; j < matrix_size; j++)
-            {
-                if (i == j)
-                    A[i][j] = 3;
-                else
-                    A[i][j] = 12;
-            }
-
-        }
-        print_matrix(A);
-
-        //LU_decomposition
-        for (int k = 0; k < matrix_size; k++)
-        {
-            //pivotsearch
-            columnpivot(A, k);
-            for(int i=k;i<matrix_size;i++){
-            	L[i][k]=A[i][k]/A[k][k];
-            }
-            for(int j=k;j<matrix_size;j++){
-            	for(int i=k+1;i<matrix_size;i++){
-            		A[i][j]=A[i][j]-L[i][k]*A[k][j];
-            	}
-            }
-            print_matrix(L);
-        }
-        print_matrix(A);
-        print_matrix(L);
-
-
-
-
+        single();
     }
-
     MPI_Finalize();
     exit(0);
+
 
 }
 
