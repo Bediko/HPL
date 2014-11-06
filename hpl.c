@@ -6,7 +6,7 @@
 
 int matrix_size = 4;
 int testing = 1;
-void print_matrix(double **matrix)
+void print_matrix(double matrix[][matrix_size])
 {
     for (int i = 0; i < matrix_size; i++)
     {
@@ -27,11 +27,11 @@ void print_vec(double vec[matrix_size])
 }
 
 
-void columnpivot(double **matrix, int k, double vec[matrix_size])
+void columnpivot(double matrix[][matrix_size], int k, double vec[matrix_size])
 {
     int s, p;
     double pivot;
-    double *tmp, tmp2;
+    double tmp, tmp2;
     //first element of column=pivot
     pivot = fabs(matrix[k][k]);
     //for all rows > k
@@ -49,9 +49,11 @@ void columnpivot(double **matrix, int k, double vec[matrix_size])
     if (p != k)
     {
         //swap matrix rows
-        tmp = matrix[k];
-        matrix[k] = matrix[p];
-        matrix[p] = tmp;
+        for(int i=0;i<matrix_size;i++){
+        tmp = matrix[k][i];
+        matrix[k][i] = matrix[p][i];
+        matrix[p][i] = tmp;
+    }
         //swap vector elemnts
         tmp2 = vec[k];
         vec[k] = vec[p];
@@ -61,29 +63,13 @@ void columnpivot(double **matrix, int k, double vec[matrix_size])
 
 void single()
 {
-    double **A;
-    double vec[matrix_size];
+    
+    double vec[matrix_size],veco[matrix_size];
 
 
 
     //allocate matrix A, L, U
-    A = (double **)malloc(matrix_size * sizeof(double *));
-
-
-    if (A == NULL)
-    {
-        printf("Out of Memory\n");
-        exit(0);
-    }
-    for (int i = 0; i < matrix_size; i++)
-    {
-        A[i] = (double *)malloc((matrix_size + 1) * sizeof(double));
-        if (A[i] == NULL)
-        {
-            printf("Out of Memory\n");
-            exit(0);
-        }
-    }
+    double A[matrix_size][matrix_size], O[matrix_size][matrix_size];
 
 
 
@@ -127,46 +113,48 @@ void single()
     vec[2] = 8;
     vec[3] = -8;
 
-    printf("Input\n");
+    //copy A and b to use original values as test
+    for(int i=0; i<matrix_size;i++){
+    	for(int j=0;j<matrix_size;j++){
+    		O[i][j]=A[i][j];
+    	}
+    	veco[i]=vec[i];
+    }
+
+    printf("Input\nb:\n");
     print_vec(vec);
+    printf("A:\n");
     print_matrix(A);
     
 
     //LU_decomposition in Matrix A
     for (int i = 0; i < matrix_size - 1; i++)
     {
+
         //pivotsearch
         columnpivot(A, i, vec);
         for (int k = i + 1; k < matrix_size; k++)
         {   //L
             A[k][i] = A[k][i] / A[i][i];
+            
+
 
             for (int j = i + 1; j < matrix_size; j++)
             {
                 //U
                 A[k][j] = A[k][j] - (A[k][i] * A[i][j]);
+
             }
+            //Ly=z
+            vec[k]=vec[k]-(A[k][i]*vec[i]);
         }
-    printf("Step %i\n",i);
-    print_vec(vec);
-    print_matrix(A);
 
     }
-    
-    //Ly=z
-    for (int i = 0; i < matrix_size; i++)
-    {
-        double sum = 0;
-        for (int j = 0; j < i; j++)
-        {
-            
-                sum += A[i][j] * vec[j];
-        }
-        vec[i] = vec[i]-sum;
-        
-    }
-    printf("Z\n");
+
+    print_matrix(A);
     print_vec(vec);
+    
+    
 
     //Ux=y
     for (int i = matrix_size-1; i >=0; i--)
@@ -180,8 +168,16 @@ void single()
         vec[i] = (vec[i]-sum)/A[i][i];
         
     }
-    printf("Y\n");
+    printf("X\n");
     print_vec(vec);
+    printf("Ax:\n");
+    for(int i=0; i<matrix_size;i++){
+    	double sum=0;
+    	for(int j=0;j<matrix_size;j++){
+    		sum+=O[i][j]*vec[j];
+    	}
+    	printf("%3.3lf\n",sum);
+    }
 }
 void test()
 {
