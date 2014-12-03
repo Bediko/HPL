@@ -8,19 +8,22 @@
 #include <mpi.h>
 #include <math.h>
 #include <time.h>
+#include <string.h>
+#include <vector>
 
+using namespace std;
 
 
 int matrix_size = 4;
-int testing = 1;
-int myrank;
+int testing = 0;
+int myrank, numprocs;
 
 /**
  * @brief prints a N x N matrix
  *
  * @param matrix [in] N x N matrix
  */
-void print_matrix(double matrix[][matrix_size])
+void print_matrix( vector<vector<double> > matrix)
 {
     for (int i = 0; i < matrix_size; i++)
     {
@@ -39,7 +42,7 @@ void print_matrix(double matrix[][matrix_size])
  *
  * @param vec [in] vector of size N
  */
-void print_vec(double vec[matrix_size])
+void print_vec(vector<double> vec)
 {
     for (int i = 0; i < matrix_size; i++)
         printf("% lf \n", vec[i]);
@@ -55,7 +58,7 @@ void print_vec(double vec[matrix_size])
  * @param k [in] column to check
  * @param vec [in] Vector of size N
  */
-void columnpivot(double matrix[][matrix_size], int k, double vec[matrix_size])
+void columnpivot(vector<vector<double> > matrix, int k, vector<double> vec)
 {
     int s, p;
     double pivot;
@@ -89,7 +92,16 @@ void columnpivot(double matrix[][matrix_size], int k, double vec[matrix_size])
         vec[p] = tmp2;
     }
 }
-void columnpivot_parallel(double matrix[][matrix_size], int k, double vec[matrix_size])
+
+/**
+ * @brief calculates the pivot of a column and swaps the rows on the local process. Also broadcasts rows to swap to other processes
+ *
+ *
+ * @param matrix [in] N x N matrix
+ * @param k [in] column to check
+ * @param vec [in] Vector of size N
+ */
+void columnpivot_parallel(vector<vector<double> > &matrix, int k, vector<double> &vec)
 {
     int s, p;
     double pivot;
@@ -138,30 +150,33 @@ void columnpivot_parallel(double matrix[][matrix_size], int k, double vec[matrix
  */
 void single()
 {
+
     if (myrank != 0)
         return;
+    printf("Testing single:\n");
 
-    double vec[matrix_size], veco[matrix_size];
+    vector<double> vec(matrix_size), veco(matrix_size);
 
 
 
     //allocate matrix A, L, U
-    double A[matrix_size][matrix_size], O[matrix_size][matrix_size];
+    //double A[matrix_size][matrix_size], O[matrix_size][matrix_size];
+    vector<vector<double> > A(matrix_size, vector<double>(matrix_size));
+    vector<vector<double> > O(matrix_size, vector<double>(matrix_size));
 
 
 
+    srand(time(NULL));
+    //testcase: random values
+    for (int i = 0; i < matrix_size; i++)
+    {
+        for (int j = 0; j < matrix_size; j++)
+        {
+            A[i][j] = rand() % 100;
+        }
+        vec[i] = rand() % 100;
 
-    // srand(time(NULL));
-    // //testcase: random values
-    // for (int i = 0; i < matrix_size; i++)
-    // {
-    //     for (int j = 0; j < matrix_size; j++)
-    //     {
-    //         A[i][j] = rand() % 100;
-    //     }
-    //     vec[i] = rand() % 100;
-
-    // }
+    }
 
     //Testcase: step by step solution http://www.das-gelbe-rechenbuch.de/download/Lu.pdf page 8 ff
     // A[0][0] = 6.0;
@@ -270,40 +285,6 @@ void single()
 }
 
 /**
- * @brief transposes a N x N matrix
- * @param matrix [in]  N x N matrix to transpose
- */
-void transpose_matrix(double matrix[][matrix_size])
-{
-    double temp;
-    for (int i = 0; i < matrix_size - 1; i++)
-    {
-        for (int k = i + 1; k < matrix_size; k++)
-        {
-            temp = matrix[i][k];
-            matrix[i][k] = matrix[k][i];
-            matrix[k][i] = temp;
-        }
-    }
-}
-/**
- * @brief Swaps row a wit row b in matrix
- *
- * @param matrix [in] matrix containing rows
- * @param a [in] first row to swap
- * @param b [in] second row to swap
- */
-void swap_rows(double matrix[][matrix_size], int a, int b)
-{
-    double temp;
-    temp = matrix[a][b];
-    matrix[a][b] = matrix[b][a];
-    matrix[b][a] = temp;
-
-}
-
-
-/**
  * @brief calculates Ax=b with LU-decomposition in parallel
  */
 void parallel(int argc, char **argv)
@@ -313,9 +294,6 @@ void parallel(int argc, char **argv)
     // int err = MPI_Init(&argc, &argv);
     // if (err != MPI_SUCCESS)
     //     printf("error: initializing MPI (%d)\n", err);
-
-
-    int numprocs;
     int i, j;
     int err;
     MPI_Status status;
@@ -331,11 +309,15 @@ void parallel(int argc, char **argv)
     //     printf("error: comm_rank (%d)\n", err);
 
     //every process gets a whole matrix and vector
-    double vec[matrix_size], veco[matrix_size];
-    int columns = matrix_size / numprocs;
-    double A[matrix_size][matrix_size], O[matrix_size][matrix_size];
+    vector<double> vec(matrix_size), veco(matrix_size);
 
-    MPI_Datatype temp, columnsToSend;
+
+
+
+    vector<vector<double> > A(matrix_size, vector<double>(matrix_size));
+    vector<vector<double> > O(matrix_size, vector<double>(matrix_size));
+
+
 
 
     vec[0] = -10;
@@ -379,12 +361,17 @@ void parallel(int argc, char **argv)
 
     }
     j = 0;
+    sleep(myrank);
+    printf("Rank %d\n", myrank);
+    print_matrix(A);
 
-    for(int i=0;i<matrix_size;i++){
-        for(int j=0;j<matrix_size;j++){
-            O[i][j]=A[i][j];
+    for (int i = 0; i < matrix_size; i++)
+    {
+        for (int j = 0; j < matrix_size; j++)
+        {
+            O[i][j] = A[i][j];
         }
-        veco[i]=vec[i];
+        veco[i] = vec[i];
     }
 
     int pivot;
@@ -410,9 +397,9 @@ void parallel(int argc, char **argv)
                     A[pivot][l] = tmp;
 
                 }
-                tmp=vec[i];
-                vec[i]=vec[pivot];
-                vec[pivot]=tmp;
+                tmp = vec[i];
+                vec[i] = vec[pivot];
+                vec[pivot] = tmp;
             }
 
         }
@@ -452,7 +439,7 @@ void parallel(int argc, char **argv)
                     A[k][j] = A[k][j] - (A[k][i] * A[i][j]);
             }
             //U
-             vec[j] = vec[j] - (A[j][i] * vec[i]);
+            vec[j] = vec[j] - (A[j][i] * vec[i]);
         }
 
     }
@@ -460,36 +447,42 @@ void parallel(int argc, char **argv)
     // sleep(myrank);
     // printf("Rank: %d\n", myrank);
     // print_vec(vec);
-    
+
 
     double lsum, gsum;
     //Ux=y
-    for (int i = matrix_size-1; i >= 0; i--)//row
+    for (int i = matrix_size - 1; i >= 0; i--) //row
     {
         //forward subtitution method
         lsum = 0.0; //local sum
         gsum = 0.0; //global sum
         //run over the upper triangle
-        for (int p = matrix_size-1; p > i; p--)//column
+        for (int p = matrix_size - 1; p > i; p--) //column
         {
-             if (p % numprocs == myrank) //If the column is in my process
-                 lsum += A[i][p] * vec[p]; //add to my local sum
+            if (p % numprocs == myrank) //If the column is in my process
+                lsum += A[i][p] * vec[p]; //add to my local sum
         }
         MPI_Allreduce(&lsum, &gsum, 1,  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        if(i %numprocs==myrank){
-        	vec[i] = (vec[i] - gsum)/A[i][i]; 
+        if (i % numprocs == myrank)
+        {
+            vec[i] = (vec[i] - gsum) / A[i][i];
         }
         else
-        	vec[i]=0;
+            vec[i] = 0;
     }
-    MPI_Barrier(MPI_COMM_WORLD);
     sleep(myrank);
-    printf("Rank X : %d\n", myrank);
-    print_vec(vec);
+
+
+    for (int i = 0; i < matrix_size; i++)
+    {
+        if (i % numprocs == myrank)
+            printf("Rank: %d, Vector element %d: %e\n", myrank, i, vec[i]);
+    }
 
     //Ax=b
-    double erg[matrix_size],sum;
-    int succ=1;
+    double erg[matrix_size], sum;
+    int succ = 1;
+
     for (int i = 0; i < matrix_size; i++)//row
     {
         sum = 0;
@@ -499,16 +492,19 @@ void parallel(int argc, char **argv)
                 sum += O[i][j] * vec[j];
         }
         MPI_Allreduce(&sum, &sum, 1,  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        if(myrank==0)
-            erg[i]=sum;
+
+        erg[i] = sum;
+
         //big vectors are work to compare by hand, use simple way to compare automated, not always right.
         if ( (fabs(erg[i]) - fabs(veco[i])) > 0.0000000001)
         {
-            printf("Wrong at index %i: % lf\t%lf\n", i, erg[i], veco[i]);
-            succ=0;
+            printf("Wrong at index %i : % lf\t%lf\n", i, erg[i], veco[i]);
+            succ = 0;
         }
+
     }
-    if(myrank==0&&succ)
+    MPI_Allreduce(&succ, &succ, 1,  MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    if (myrank == 0 && succ)
         printf("Check Succesfull, Ax=b is true");
 
 
@@ -516,13 +512,30 @@ void parallel(int argc, char **argv)
     exit(0);
 }
 
+
+/**
+ * @brief Calculates the LU Decomposition of a NxN Matrix as HPL-Benchmark
+ * @details [long description]
+ *
+ * @param argc [in] Number of arguments
+ * @param argv [in] valid parameters are the matrix size or 't' for testing.
+ *
+ * @return [description]
+ */
 int main(int argc, char **argv)
 {
-    if (argc > 1)
-        matrix_size = atoi(argv[1]);
-
-
-
+    if (argc == 2)
+    {
+        if (strcmp(argv[1], "t") == 0)
+            testing = 1;
+        else
+            matrix_size = atoi(argv[1]);
+    }
+    else
+    {
+        printf("Usage: hpl <parameter>\n parameter: 't' or matrix size\n");
+        exit(0);
+    }
     //create NxN matrices
     int err = MPI_Init(&argc, &argv);
     if (err != MPI_SUCCESS)
@@ -536,7 +549,227 @@ int main(int argc, char **argv)
     {
         single();
         MPI_Barrier(MPI_COMM_WORLD);
-        parallel(argc, argv);
+        if (matrix_size != 4)
+        {
+            MPI_Finalize();
+            exit(0);
+        }
+        parallel(argc, argv);//works only with 4 processes
+        MPI_Finalize();
+        exit(0);
     }
+
+    err = MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+    if (err != MPI_SUCCESS)
+        printf("error: comm_size (%d)\n", err);
+    if (myrank == 0)
+    {
+        printf("HPL Benchmark with %d processes on a %dx%d Matrix with random numbers between 0 and 100\n", numprocs, matrix_size, matrix_size);
+    }
+    // int err = MPI_Init(&argc, &argv);
+    // if (err != MPI_SUCCESS)
+    //     printf("error: initializing MPI (%d)\n", err);
+    MPI_Status status;
+
+    //every process gets a whole matrix and vector
+    vector<double> vec(matrix_size), veco(matrix_size);
+
+
+
+    //allocate matrix A, L, U
+    //double A[matrix_size][matrix_size], O[matrix_size][matrix_size];
+    vector<vector<double> > A(matrix_size, vector<double>(matrix_size));
+    vector<vector<double> > O(matrix_size, vector<double>(matrix_size));
+
+
+    srand(time(NULL));
+    //initialise Matrix
+    for (int i = 0; i < matrix_size; i++)
+    {
+        for (int j = 0; j < matrix_size; j++)
+        {
+            if (i % numprocs == myrank)
+
+                A[i][j] = rand() % 100;
+
+            else
+                A[i][j] = 0;
+        }
+        if (i % numprocs == myrank)
+            vec[i] = rand() % 100;
+        else
+            vec[i] = 0;
+    }
+
+    //store original values
+    for (int i = 0; i < matrix_size; i++)
+    {
+        for (int j = 0; j < matrix_size; j++)
+        {
+            O[i][j] = A[i][j];
+        }
+        veco[i] = vec[i];
+    }
+    double start, stop;
+    if (myrank == 0)
+    {
+        start = MPI_Wtime();
+    }
+    int pivot;
+    double tmp;
+    int j = 0;
+    for (int i = 0; i < matrix_size - 1; i++)
+    {
+        //begin pivotsearch
+        if (i % numprocs == myrank)
+        {
+            columnpivot_parallel(A, i, vec);
+            j++;
+        }
+        else
+        {
+            MPI_Bcast( &pivot, 1, MPI_INT, i % numprocs, MPI_COMM_WORLD);
+
+            if (pivot > -1)
+            {
+                for (int l = 0; l < matrix_size; l++)
+                {
+                    tmp = A[i][l];
+                    A[i][l] = A[pivot][l];
+                    A[pivot][l] = tmp;
+
+                }
+                tmp = vec[i];
+                vec[i] = vec[pivot];
+                vec[pivot] = tmp;
+            }
+
+        }
+        //end pivot
+
+
+
+        //LU
+        if (i % numprocs == myrank)
+        {
+            double elements[matrix_size - (i + 1)];
+            for (int k = i + 1; k < matrix_size; k++)
+            {
+                //L
+                A[k][i] = A[k][i] / A[i][i];
+                elements[k - (i + 1)] = A[k][i];
+            }
+
+            MPI_Bcast(elements, matrix_size - (i + 1), MPI_DOUBLE, myrank, MPI_COMM_WORLD);
+        }
+        else
+        {
+            double elements[matrix_size - (i + 1)];
+            MPI_Bcast(elements, matrix_size - (i + 1), MPI_DOUBLE, i % numprocs, MPI_COMM_WORLD);
+            for (int k = 0; k < matrix_size - (i + 1); k++)
+            {
+                //L
+                A[k + i + 1][i] = elements[k];
+            }
+        }
+
+        for (int j = i + 1; j < matrix_size; j++)
+        {
+            if (j % numprocs == myrank)
+            {
+                for (int k = i + 1; k < matrix_size; k++)
+                    A[k][j] = A[k][j] - (A[k][i] * A[i][j]);
+            }
+            //U
+            vec[j] = vec[j] - (A[j][i] * vec[i]);
+        }
+
+    }
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // sleep(myrank);
+    // printf("Rank: %d\n", myrank);
+    // print_vec(vec);
+
+
+    double lsum, gsum;
+    //Ux=y
+    for (int i = matrix_size - 1; i >= 0; i--) //row
+    {
+        //forward subtitution method
+        lsum = 0.0; //local sum
+        gsum = 0.0; //global sum
+        //run over the upper triangle
+        for (int p = matrix_size - 1; p > i; p--) //column
+        {
+            if (p % numprocs == myrank) //If the column is in my process
+                lsum += A[i][p] * vec[p]; //add to my local sum
+        }
+        MPI_Allreduce(&lsum, &gsum, 1,  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        if (i % numprocs == myrank)
+        {
+            vec[i] = (vec[i] - gsum) / A[i][i];
+        }
+        else
+            vec[i] = 0;
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (myrank == 0)
+        stop = MPI_Wtime();
+
+
+
+
+    for (int i = 0; i < matrix_size; i++)
+    {
+        if (i % numprocs == myrank)
+            printf("Rank: %d, Vector element %d: %e\n", myrank, i, vec[i]);
+    }
+
+    //Ax=b
+    double erg[matrix_size], sum;
+    int succ = 0;
+
+    for (int i = 0; i < matrix_size; i++)//row
+    {
+        sum = 0;
+        for (int j = 0; j < matrix_size; j++)//column
+        {
+            if (j % numprocs == myrank)
+                sum += O[i][j] * vec[j];
+        }
+        MPI_Allreduce(&sum, &sum, 1,  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+        erg[i] = sum;
+
+        //big vectors are work to compare by hand, use simple way to compare automated, not always right.
+        if (i % numprocs == myrank)
+        {
+            if ( (fabs(erg[i]) - fabs(veco[i])) > 0.0000000001)
+            {
+                printf("Wrong at index %i : % lf\t%lf\n", i, erg[i], veco[i]);
+                succ = 1;
+            }
+        }
+
+    }
+    //if sum of all succs >0 there is an error.
+    MPI_Allreduce(&succ, &succ, 1,  MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    if (myrank == 0 && succ == 0)
+        printf("Check Succesfull, Ax=b is true\n");
+    else if (myrank == 0)
+        printf("Check unsuccesfull, Ax=b is false\n");
+
+
     MPI_Finalize();
+    if (myrank == 0)
+    {
+    	double took=stop - start;
+        printf("took %lf seconds for benchmark\n", took);
+        double gops=matrix_size/1000000000.0;
+        double ms=(float)matrix_size;
+        double flops=(((ms*ms*ms)+(2*ms*ms))/took)/1000000000;
+        
+        printf("GFLOPS: %lf\n",flops);
+    }
+    exit(0);
 }
