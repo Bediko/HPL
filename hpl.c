@@ -164,26 +164,26 @@ void single()
     // }
 
     //Testcase: step by step solution http://www.das-gelbe-rechenbuch.de/download/Lu.pdf page 8 ff
-    A[0][0] = 6.0;
-    A[0][1] = 5.0;
-    A[0][2] = 3.0;
-    A[0][3] = -10.0;
-    A[1][0] = 3.0;
-    A[1][1] = 7.0;
-    A[1][2] = -3.0;
-    A[1][3] = 5.0;
-    A[2][0] = 12.0;
-    A[2][1] = 4.0;
-    A[2][2] = 4.0;
-    A[2][3] = 4.0;
-    A[3][0] = 0.0;
-    A[3][1] = 12.0;
-    A[3][2] = 0.0;
-    A[3][3] = -8.0;
-    vec[0] = -10;
-    vec[1] = 14;
-    vec[2] = 8;
-    vec[3] = -8;
+    // A[0][0] = 6.0;
+    // A[0][1] = 5.0;
+    // A[0][2] = 3.0;
+    // A[0][3] = -10.0;
+    // A[1][0] = 3.0;
+    // A[1][1] = 7.0;
+    // A[1][2] = -3.0;
+    // A[1][3] = 5.0;
+    // A[2][0] = 12.0;
+    // A[2][1] = 4.0;
+    // A[2][2] = 4.0;
+    // A[2][3] = 4.0;
+    // A[3][0] = 0.0;
+    // A[3][1] = 12.0;
+    // A[3][2] = 0.0;
+    // A[3][3] = -8.0;
+    // vec[0] = -10;
+    // vec[1] = 14;
+    // vec[2] = 8;
+    // vec[3] = -8;
 
     //copy A and b to use original values as test
     for (int i = 0; i < matrix_size; i++)
@@ -379,6 +379,14 @@ void parallel(int argc, char **argv)
 
     }
     j = 0;
+
+    for(int i=0;i<matrix_size;i++){
+        for(int j=0;j<matrix_size;j++){
+            O[i][j]=A[i][j];
+        }
+        veco[i]=vec[i];
+    }
+
     int pivot;
     double tmp;
     for (int i = 0; i < matrix_size - 1; i++)
@@ -455,7 +463,7 @@ void parallel(int argc, char **argv)
     
 
     double lsum, gsum;
-    //Ax=b
+    //Ux=y
     for (int i = matrix_size-1; i >= 0; i--)//row
     {
         //forward subtitution method
@@ -478,6 +486,32 @@ void parallel(int argc, char **argv)
     sleep(myrank);
     printf("Rank X : %d\n", myrank);
     print_vec(vec);
+
+    //Ax=b
+    double erg[matrix_size],sum;
+    int succ=1;
+    for (int i = 0; i < matrix_size; i++)//row
+    {
+        sum = 0;
+        for (int j = 0; j < matrix_size; j++)//column
+        {
+            if (j % numprocs == myrank)
+                sum += O[i][j] * vec[j];
+        }
+        MPI_Allreduce(&sum, &sum, 1,  MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        if(myrank==0)
+            erg[i]=sum;
+        //big vectors are work to compare by hand, use simple way to compare automated, not always right.
+        if ( (fabs(erg[i]) - fabs(veco[i])) > 0.0000000001)
+        {
+            printf("Wrong at index %i: % lf\t%lf\n", i, erg[i], veco[i]);
+            succ=0;
+        }
+    }
+    if(myrank==0&&succ)
+        printf("Check Succesfull, Ax=b is true");
+
+
     MPI_Finalize();
     exit(0);
 }
