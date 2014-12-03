@@ -9,9 +9,7 @@
 #include <math.h>
 #include <time.h>
 #include <string.h>
-#include <vector>
 
-using namespace std;
 
 
 int matrix_size = 4;
@@ -23,7 +21,7 @@ int myrank, numprocs;
  *
  * @param matrix [in] N x N matrix
  */
-void print_matrix( vector<vector<double> > matrix)
+void print_matrix( double **matrix)
 {
     for (int i = 0; i < matrix_size; i++)
     {
@@ -42,7 +40,7 @@ void print_matrix( vector<vector<double> > matrix)
  *
  * @param vec [in] vector of size N
  */
-void print_vec(vector<double> vec)
+void print_vec(double *vec)
 {
     for (int i = 0; i < matrix_size; i++)
         printf("% lf \n", vec[i]);
@@ -58,7 +56,7 @@ void print_vec(vector<double> vec)
  * @param k [in] column to check
  * @param vec [in] Vector of size N
  */
-void columnpivot(vector<vector<double> > matrix, int k, vector<double> vec)
+void columnpivot(double **matrix, int k, double *vec)
 {
     int s, p;
     double pivot;
@@ -101,7 +99,7 @@ void columnpivot(vector<vector<double> > matrix, int k, vector<double> vec)
  * @param k [in] column to check
  * @param vec [in] Vector of size N
  */
-void columnpivot_parallel(vector<vector<double> > &matrix, int k, vector<double> &vec)
+void columnpivot_parallel(double **matrix, int k, double *vec)
 {
     int s, p;
     double pivot;
@@ -155,14 +153,19 @@ void single()
         return;
     printf("Testing single:\n");
 
-    vector<double> vec(matrix_size), veco(matrix_size);
 
+    double *vec = (double *)malloc(sizeof(double) * matrix_size);
+    double *veco = (double *) malloc(sizeof(double) * matrix_size);
 
-
-    //allocate matrix A, L, U
-    //double A[matrix_size][matrix_size], O[matrix_size][matrix_size];
-    vector<vector<double> > A(matrix_size, vector<double>(matrix_size));
-    vector<vector<double> > O(matrix_size, vector<double>(matrix_size));
+    double **A = (double **)malloc(matrix_size * sizeof(double *));
+    double **O = (double **)malloc(matrix_size * sizeof(double *));
+    A[0] = (double *)malloc(matrix_size * matrix_size * sizeof(double));
+    O[0] = (double *)malloc(matrix_size * matrix_size * sizeof(double));
+    for (int i = 1; i < matrix_size; i++)
+    {
+        A[i] = A[0] + i * matrix_size;
+        O[i] = O[0] + i * matrix_size;
+    }
 
 
 
@@ -294,9 +297,9 @@ void parallel(int argc, char **argv)
     // int err = MPI_Init(&argc, &argv);
     // if (err != MPI_SUCCESS)
     //     printf("error: initializing MPI (%d)\n", err);
-    int i, j;
+    int j;
     int err;
-    MPI_Status status;
+    
 
     // query number of procs
     err = MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
@@ -309,14 +312,18 @@ void parallel(int argc, char **argv)
     //     printf("error: comm_rank (%d)\n", err);
 
     //every process gets a whole matrix and vector
-    vector<double> vec(matrix_size), veco(matrix_size);
+    double *vec = (double *)malloc(sizeof(double) * matrix_size);
+    double *veco = (double *) malloc(sizeof(double) * matrix_size);
 
-
-
-
-    vector<vector<double> > A(matrix_size, vector<double>(matrix_size));
-    vector<vector<double> > O(matrix_size, vector<double>(matrix_size));
-
+    double **A = (double **)malloc(matrix_size * sizeof(double *));
+    double **O = (double **)malloc(matrix_size * sizeof(double *));
+    A[0] = (double *)malloc(matrix_size * matrix_size * sizeof(double));
+    O[0] = (double *)malloc(matrix_size * matrix_size * sizeof(double));
+    for (int i = 1; i < matrix_size; i++)
+    {
+        A[i] = A[0] + i * matrix_size;
+        O[i] = O[0] + i * matrix_size;
+    }
 
 
 
@@ -548,6 +555,9 @@ int main(int argc, char **argv)
     if (testing)
     {
         single();
+        if(myrank==0){
+            printf("test parallel:\n");
+        }
         MPI_Barrier(MPI_COMM_WORLD);
         if (matrix_size != 4)
         {
@@ -572,14 +582,24 @@ int main(int argc, char **argv)
     MPI_Status status;
 
     //every process gets a whole matrix and vector
-    vector<double> vec(matrix_size), veco(matrix_size);
+    double *vec = (double *)malloc(sizeof(double) * matrix_size);
+    double *veco = (double *) malloc(sizeof(double) * matrix_size);
+
+    double **A = (double **)malloc(matrix_size * sizeof(double *));
+    double **O = (double **)malloc(matrix_size * sizeof(double *));
+    A[0] = (double *)malloc(matrix_size * matrix_size * sizeof(double));
+    O[0] = (double *)malloc(matrix_size * matrix_size * sizeof(double));
+    for (int i = 1; i < matrix_size; i++)
+    {
+        A[i] = A[0] + i * matrix_size;
+        O[i] = O[0] + i * matrix_size;
+    }
+
 
 
 
     //allocate matrix A, L, U
-    //double A[matrix_size][matrix_size], O[matrix_size][matrix_size];
-    vector<vector<double> > A(matrix_size, vector<double>(matrix_size));
-    vector<vector<double> > O(matrix_size, vector<double>(matrix_size));
+    //double A[matrix_size][matrix_size], O[matrix_size][matrix_size]
 
 
     srand(time(NULL));
@@ -763,13 +783,13 @@ int main(int argc, char **argv)
     MPI_Finalize();
     if (myrank == 0)
     {
-    	double took=stop - start;
+        double took = stop - start;
         printf("took %lf seconds for benchmark\n", took);
-        double gops=matrix_size/1000000000.0;
-        double ms=(float)matrix_size;
-        double flops=(((ms*ms*ms)+(2*ms*ms))/took)/1000000000;
-        
-        printf("GFLOPS: %lf\n",flops);
+        double gops = matrix_size / 1000000000.0;
+        double ms = (float)matrix_size;
+        double flops = (((ms * ms * ms) + (2 * ms * ms * ms)) / took) / 1000000000;
+
+        printf("GFLOPS: %lf\n", flops);
     }
     exit(0);
 }
