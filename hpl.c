@@ -77,7 +77,6 @@ void columnpivot(double **matrix, int k, double *vec)
     }
     if (p != k)
     {
-        //swap matrix rows
         for (int i = 0; i < matrix_size; i++)
         {
             tmp = matrix[k][i];
@@ -99,7 +98,7 @@ void columnpivot(double **matrix, int k, double *vec)
  * @param k [in] column to check
  * @param vec [in] Vector of size N
  */
-void columnpivot_parallel(double **matrix, int k, double *vec)
+int columnpivot_parallel(double **matrix, int k, double *vec)
 {
     int s, p;
     double pivot;
@@ -118,6 +117,7 @@ void columnpivot_parallel(double **matrix, int k, double *vec)
             p = s;
         }
     }
+    return p;
     if (p != k)
     {
 
@@ -579,7 +579,6 @@ int main(int argc, char **argv)
     // int err = MPI_Init(&argc, &argv);
     // if (err != MPI_SUCCESS)
     //     printf("error: initializing MPI (%d)\n", err);
-    MPI_Status status;
 
     //every process gets a whole matrix and vector
     double *vec = (double *)malloc(sizeof(double) * matrix_size);
@@ -630,27 +629,27 @@ int main(int argc, char **argv)
         }
         veco[i] = vec[i];
     }
-    double start, stop;
+    double start=0, stop=0;
     if (myrank == 0)
     {
         start = MPI_Wtime();
     }
     int pivot;
     double tmp;
-    int j = 0;
+    
     for (int i = 0; i < matrix_size - 1; i++)
     {
+    	pivot=i;
         //begin pivotsearch
         if (i % numprocs == myrank)
         {
-            columnpivot_parallel(A, i, vec);
-            j++;
+            pivot=columnpivot_parallel(A, i, vec);
+  
         }
-        else
-        {
+        
             MPI_Bcast( &pivot, 1, MPI_INT, i % numprocs, MPI_COMM_WORLD);
 
-            if (pivot > -1)
+            if (pivot!=i)
             {
                 for (int l = 0; l < matrix_size; l++)
                 {
@@ -664,7 +663,7 @@ int main(int argc, char **argv)
                 vec[pivot] = tmp;
             }
 
-        }
+        
         //end pivot
 
 
@@ -785,7 +784,7 @@ int main(int argc, char **argv)
     {
         double took = stop - start;
         printf("took %lf seconds for benchmark\n", took);
-        double gops = matrix_size / 1000000000.0;
+        
         double ms = (float)matrix_size;
         double flops = (((ms * ms * ms) + (2 * ms * ms * ms)) / took) / 1000000000;
 
